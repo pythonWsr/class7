@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages & Cloudflare Worker
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate pages and upload secrets to KV
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          ACCESS_PASSWORD: ${{ secrets.ACCESS_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+          PAGES_URL: ${{ vars.PAGES_URL }}      # 如 https://用户名.github.io
+        run: node .github/scripts/generate.js
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+
+      # 可选：如果通过 wrangler deploy 部署 Worker，可在此步骤设置 secret
+      - name: Publish Worker secrets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: |
+            secret put PASSWORD_HASH --env production <<< "${{ secrets.PASSWORD_HASH_FROM_GENERATE }}"
+            secret put ALLOWED_ORIGIN --env production <<< "${{ vars.PAGES_URL }}"
