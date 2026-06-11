@@ -55,6 +55,15 @@ if (fs.existsSync(dataDir)) {
     fs.cpSync(dataDir, path.join(distDir, 'data'), { recursive: true });
 }
 
+// 新增：复制 styles.css
+const cssSrc = path.join(__dirname, '..', '..', 'styles.css');
+if (fs.existsSync(cssSrc)) {
+    fs.copyFileSync(cssSrc, path.join(distDir, 'styles.css'));
+    console.log('✅ styles.css copied to dist');
+} else {
+    console.warn('⚠️ styles.css not found, skipping');
+}
+
 // 3. 上传文件列表和 Worker 环境变量到 Cloudflare KV
 async function uploadToKV() {
     if (!cloudflareApiToken || !cloudflareAccountId || !kvNamespaceId) {
@@ -77,13 +86,13 @@ async function uploadToKV() {
         if (!resp.ok) {
             console.error(`Failed to upload ${key}: ${resp.status} ${await resp.text()}`);
         } else {
-            console.log(`Uploaded ${key} to KV`);
+            console.log(`✅ Uploaded ${key} to KV`);
         }
     };
 
     // 上传文件列表（Worker 通过 FILE_LIST_STORE 读取）
     await putKV('filelist', JSON.stringify(fileList));
-    // 上传 Worker 所需的环境变量（也可以直接用 wrangler secret，这里提供 KV 方式作为备用）
+    // 上传 Worker 所需的环境变量（也可以用 wrangler secret，这里提供 KV 方式作为备用）
     await putKV('password_hash', passwordHash);
     await putKV('signature', signature);       // 非必须，但可保留
     await putKV('public_key_jwk', JSON.stringify(publicKeyJwk));

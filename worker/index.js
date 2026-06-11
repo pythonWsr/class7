@@ -50,6 +50,7 @@ async function registerDevice(request, env) {
     // ✅ 从 KV 读取密码哈希（关键修正）
     const expectedHash = await env.FILE_LIST_STORE.get('password_hash');
     if (!expectedHash) {
+        console.error('password_hash not found in KV');
         return jsonResponse({ error: 'Server config error' }, 500, env);
     }
 
@@ -89,7 +90,6 @@ async function getFileList(request, env) {
 }
 
 function jsonResponse(data, status = 200, env) {
-    // 从环境变量获取允许的源（由 wrangler.toml 或控制台设置）
     const allowedOrigin = env?.ALLOWED_ORIGIN || '*';
     return new Response(JSON.stringify(data), {
         status,
