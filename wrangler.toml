@@ -1,0 +1,11 @@
+name = "class7"
+main = "worker/index.js"
+compatibility_date = "2026-06-10"
+
+kv_namespaces = [
+  { binding = "DEVICE_STORE", id = "474325efabb64afd9d67ab90dbbc293b" },
+  { binding = "FILE_LIST_STORE", id = "474325efabb64afd9d67ab90dbbc293b" }
+]
+
+[vars]
+ALLOWED_ORIGIN = "https://pythonwsr.github.io/class7"
