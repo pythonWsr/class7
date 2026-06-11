@@ -28,7 +28,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
           WORKER_URL: ${{ vars.WORKER_URL }}
-          PAGES_URL: ${{ vars.PAGES_URL }}      # 如 https://用户名.github.io
         run: node .github/scripts/generate.js
 
       - name: Deploy to GitHub Pages
@@ -38,12 +37,10 @@ jobs:
           publish_dir: ./dist
           publish_branch: gh-pages
 
-      # 可选：如果通过 wrangler deploy 部署 Worker，可在此步骤设置 secret
-      - name: Publish Worker secrets
+      # 新增：部署 Cloudflare Worker
+      - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: |
-            secret put PASSWORD_HASH --env production <<< "${{ secrets.PASSWORD_HASH_FROM_GENERATE }}"
-            secret put ALLOWED_ORIGIN --env production <<< "${{ vars.PAGES_URL }}"
+          command: deploy --env production

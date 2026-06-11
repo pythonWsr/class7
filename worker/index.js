@@ -1,7 +1,6 @@
 // Cloudflare Worker - 班级共享云盘后端
 const EXPIRY_DAYS = 7;
 
-// SHA-256 辅助函数 (使用 Web Crypto API)
 async function sha256(text) {
     const encoder = new TextEncoder();
     const data = encoder.encode(text);
@@ -10,7 +9,6 @@ async function sha256(text) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// 从 Authorization 头提取 Bearer token
 function getTokenFromHeader(request) {
     const auth = request.headers.get('Authorization');
     if (auth && auth.startsWith('Bearer ')) {
@@ -19,78 +17,80 @@ function getTokenFromHeader(request) {
     return null;
 }
 
-// 检查令牌有效性并自动续期
 async function checkToken(request, env) {
     const token = getTokenFromHeader(request);
-    if (!token) return jsonResponse({ valid: false }, 401);
+    if (!token) return jsonResponse({ valid: false }, 401, env);
 
     const data = await env.DEVICE_STORE.get(token, 'json');
     if (!data || data.expiry < Date.now()) {
-        return jsonResponse({ valid: false }, 401);
+        return jsonResponse({ valid: false }, 401, env);
     }
 
     // 续期
     data.expiry = Date.now() + EXPIRY_DAYS * 24 * 60 * 60 * 1000;
     await env.DEVICE_STORE.put(token, JSON.stringify(data));
-    return jsonResponse({ valid: true, expiry: data.expiry });
+    return jsonResponse({ valid: true, expiry: data.expiry }, 200, env);
 }
 
-// 注册设备（需要 device_proof = SHA256(PASSWORD_HASH + token)）
 async function registerDevice(request, env) {
-    if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+    if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405, env);
 
     let body;
     try {
         body = await request.json();
     } catch (e) {
-        return jsonResponse({ error: 'Invalid JSON' }, 400);
+        return jsonResponse({ error: 'Invalid JSON' }, 400, env);
     }
 
     const { token, device_proof } = body;
     if (!token || !device_proof) {
-        return jsonResponse({ error: 'Missing parameters' }, 400);
+        return jsonResponse({ error: 'Missing parameters' }, 400, env);
     }
 
-    const expectedHash = env.PASSWORD_HASH;
-    // 验证设备凭证：SHA256(PASSWORD_HASH + token)
+    // ✅ 从 KV 读取密码哈希（关键修正）
+    const expectedHash = await env.FILE_LIST_STORE.get('password_hash');
+    if (!expectedHash) {
+        return jsonResponse({ error: 'Server config error' }, 500, env);
+    }
+
+    // 验证设备凭证
     const expectedProof = await sha256(expectedHash + token);
     if (device_proof !== expectedProof) {
-        return jsonResponse({ success: false, error: 'Invalid device proof' }, 403);
+        return jsonResponse({ success: false, error: 'Invalid device proof' }, 403, env);
     }
 
-    // 检查是否已存在且未过期，若已存在则直接返回成功（防止重复注册）
+    // 检查是否已存在且未过期
     const existing = await env.DEVICE_STORE.get(token, 'json');
     if (existing && existing.expiry > Date.now()) {
-        return jsonResponse({ success: true, message: 'Already registered' });
+        return jsonResponse({ success: true, message: 'Already registered' }, 200, env);
     }
 
     const entry = {
         expiry: Date.now() + EXPIRY_DAYS * 24 * 60 * 60 * 1000
     };
     await env.DEVICE_STORE.put(token, JSON.stringify(entry));
-    return jsonResponse({ success: true });
+    return jsonResponse({ success: true }, 200, env);
 }
 
-// 获取文件列表
 async function getFileList(request, env) {
     const token = getTokenFromHeader(request);
-    if (!token) return jsonResponse({ error: 'Token required' }, 401);
+    if (!token) return jsonResponse({ error: 'Token required' }, 401, env);
 
     const data = await env.DEVICE_STORE.get(token, 'json');
     if (!data || data.expiry < Date.now()) {
-        return jsonResponse({ error: 'Unauthorized' }, 401);
+        return jsonResponse({ error: 'Unauthorized' }, 401, env);
     }
 
     const fileList = await env.FILE_LIST_STORE.get('filelist', 'json');
     if (!fileList) {
-        return jsonResponse({ error: 'File list not found' }, 500);
+        return jsonResponse({ error: 'File list not found' }, 500, env);
     }
-    return jsonResponse(fileList);
+    return jsonResponse(fileList, 200, env);
 }
 
-// JSON 响应辅助
-function jsonResponse(data, status = 200) {
-    const allowedOrigin = globalThis.ALLOWED_ORIGIN || '*'; // 由环境变量设置
+function jsonResponse(data, status = 200, env) {
+    // 从环境变量获取允许的源（由 wrangler.toml 或控制台设置）
+    const allowedOrigin = env?.ALLOWED_ORIGIN || '*';
     return new Response(JSON.stringify(data), {
         status,
         headers: {
@@ -101,28 +101,25 @@ function jsonResponse(data, status = 200) {
     });
 }
 
-// CORS 预检处理
-function handleOptions(request) {
-    const allowedOrigin = globalThis.ALLOWED_ORIGIN || '*';
-    const headers = {
-        'Access-Control-Allow-Origin': allowedOrigin,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-        'Access-Control-Max-Age': '86400',
-    };
-    return new Response(null, { headers });
+function handleOptions(request, env) {
+    const allowedOrigin = env?.ALLOWED_ORIGIN || '*';
+    return new Response(null, {
+        headers: {
+            'Access-Control-Allow-Origin': allowedOrigin,
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+            'Access-Control-Max-Age': '86400',
+        }
+    });
 }
 
 export default {
     async fetch(request, env) {
-        // 设置全局 ALLOWED_ORIGIN，便于 jsonResponse 使用
-        globalThis.ALLOWED_ORIGIN = env.ALLOWED_ORIGIN || '';
-
         const url = new URL(request.url);
         const path = url.pathname;
 
         if (request.method === 'OPTIONS') {
-            return handleOptions(request);
+            return handleOptions(request, env);
         }
 
         if (path === '/api/check' && request.method === 'GET') {
