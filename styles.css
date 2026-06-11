@@ -1,0 +1,69 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+
+.container {
+    background: white; border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    width: 100%; max-width: 900px; overflow: hidden;
+}
+
+.header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white; padding: 28px 32px; text-align: center;
+}
+
+.header h1 { font-size: 2rem; font-weight: 600; letter-spacing: 2px; }
+.header p { margin-top: 8px; opacity: 0.9; font-size: 0.95rem; }
+
+#auth-section, #files-section { padding: 32px; }
+.hidden { display: none !important; }
+
+.input-group { display: flex; gap: 12px; max-width: 400px; margin: 0 auto; }
+#password-input {
+    flex: 1; padding: 14px 20px; border: 2px solid #e0e0e0; border-radius: 14px;
+    font-size: 1rem; outline: none; transition: border-color 0.2s;
+}
+#password-input:focus { border-color: #2a5298; }
+
+#submit-btn {
+    background: #2a5298; color: white; border: none; padding: 14px 28px;
+    border-radius: 14px; font-weight: 600; font-size: 1rem; cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+#submit-btn:hover { background: #1e3c72; }
+#submit-btn:active { transform: scale(0.97); }
+
+.error-msg { color: #d32f2f; text-align: center; margin-top: 16px; font-weight: 500; display: none; }
+
+.file-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+.file-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid #e0e0e0; color: #444; font-weight: 600; }
+.file-table td { padding: 14px 12px; border-bottom: 1px solid #eee; color: #555; }
+.file-table tr:hover td { background: #f8faff; }
+
+.download-btn {
+    background: #2a5298; color: white; border: none; padding: 8px 20px; border-radius: 10px;
+    font-weight: 500; cursor: pointer; text-decoration: none; display: inline-block;
+}
+.download-btn:hover { background: #1e3c72; }
+
+.file-size { white-space: nowrap; }
+
+.logout-btn {
+    background: transparent; border: 1px solid #ccc; color: #555; padding: 8px 20px;
+    border-radius: 10px; cursor: pointer; float: right; margin-bottom: 16px;
+}
+.logout-btn:hover { background: #f0f0f0; }
+
+.empty-message { text-align: center; color: #888; margin: 40px 0; }
+
+.spinner { text-align: center; margin: 40px 0; }
+.spinner::after {
+    content: ''; display: inline-block; width: 30px; height: 30px;
+    border: 3px solid #ccc; border-top-color: #2a5298; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

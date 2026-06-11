@@ -4,63 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>高三七班共享云盘</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
-        }
-        .container {
-            background: white; border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-            width: 100%; max-width: 900px; overflow: hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white; padding: 28px 32px; text-align: center;
-        }
-        .header h1 { font-size: 2rem; font-weight: 600; letter-spacing: 2px; }
-        .header p { margin-top: 8px; opacity: 0.9; font-size: 0.95rem; }
-        #auth-section, #files-section { padding: 32px; }
-        .hidden { display: none !important; }
-        .input-group { display: flex; gap: 12px; max-width: 400px; margin: 0 auto; }
-        #password-input {
-            flex: 1; padding: 14px 20px; border: 2px solid #e0e0e0; border-radius: 14px;
-            font-size: 1rem; outline: none; transition: border-color 0.2s;
-        }
-        #password-input:focus { border-color: #2a5298; }
-        #submit-btn {
-            background: #2a5298; color: white; border: none; padding: 14px 28px;
-            border-radius: 14px; font-weight: 600; font-size: 1rem; cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
-        }
-        #submit-btn:hover { background: #1e3c72; }
-        #submit-btn:active { transform: scale(0.97); }
-        .error-msg { color: #d32f2f; text-align: center; margin-top: 16px; font-weight: 500; display: none; }
-        .file-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .file-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid #e0e0e0; color: #444; font-weight: 600; }
-        .file-table td { padding: 14px 12px; border-bottom: 1px solid #eee; color: #555; }
-        .file-table tr:hover td { background: #f8faff; }
-        .download-btn {
-            background: #2a5298; color: white; border: none; padding: 8px 20px; border-radius: 10px;
-            font-weight: 500; cursor: pointer; text-decoration: none; display: inline-block;
-        }
-        .download-btn:hover { background: #1e3c72; }
-        .file-size { white-space: nowrap; }
-        .logout-btn {
-            background: transparent; border: 1px solid #ccc; color: #555; padding: 8px 20px;
-            border-radius: 10px; cursor: pointer; float: right; margin-bottom: 16px;
-        }
-        .logout-btn:hover { background: #f0f0f0; }
-        .empty-message { text-align: center; color: #888; margin: 40px 0; }
-        .spinner { text-align: center; margin: 40px 0; }
-        .spinner::after {
-            content: ''; display: inline-block; width: 30px; height: 30px;
-            border: 3px solid #ccc; border-top-color: #2a5298; border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
@@ -92,6 +36,13 @@
 
     <script>
         (function() {
+            // ========== 添加调试日志 ==========
+            console.log("[DEBUG] 页面脚本已启动");
+            console.log("[DEBUG] WORKER_URL =", WORKER_URL);
+            console.log("[DEBUG] PASSWORD_HASH 存在?", !!PASSWORD_HASH);
+            console.log("[DEBUG] SIGNATURE 存在?", !!SIGNATURE);
+            console.log("[DEBUG] PUBLIC_KEY_JWK 存在?", !!PUBLIC_KEY_JWK);
+
             const authSection = document.getElementById('auth-section');
             const filesSection = document.getElementById('files-section');
             const passwordInput = document.getElementById('password-input');
@@ -113,6 +64,7 @@
             }
 
             async function sha256(message) {
+                console.log("[DEBUG] sha256 计算:", message.substring(0, 10) + "...");
                 const msgBuffer = new TextEncoder().encode(message);
                 const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -120,6 +72,7 @@
             }
 
             async function verifySignature(publicKeyJwk, dataHex, signatureHex) {
+                console.log("[DEBUG] 开始签名验证...");
                 const key = await crypto.subtle.importKey(
                     'jwk', publicKeyJwk,
                     { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } },
@@ -127,7 +80,9 @@
                 );
                 const data = hexToBytes(dataHex);
                 const signature = hexToBytes(signatureHex);
-                return crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, data);
+                const valid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, data);
+                console.log("[DEBUG] 签名验证结果:", valid);
+                return valid;
             }
 
             function formatSize(bytes) {
@@ -151,6 +106,7 @@
             }
 
             function renderFiles(files) {
+                console.log("[DEBUG] 渲染文件列表，文件数量:", files?.length);
                 if (!files || files.length === 0) {
                     fileListContainer.innerHTML = '<p class="empty-message">📭 暂无共享文件</p>';
                     return;
@@ -171,41 +127,55 @@
                 fileListContainer.innerHTML = html;
             }
 
-            // 获取或创建设备令牌
             function getDeviceToken() {
                 let token = localStorage.getItem(STORAGE_KEY);
                 if (!token) {
                     token = crypto.randomUUID();
                     localStorage.setItem(STORAGE_KEY, token);
+                    console.log("[DEBUG] 生成新设备令牌:", token);
+                } else {
+                    console.log("[DEBUG] 使用已有设备令牌:", token);
                 }
                 return token;
             }
 
             function clearDeviceToken() {
+                console.log("[DEBUG] 清除设备令牌");
                 localStorage.removeItem(STORAGE_KEY);
             }
 
-            // 发送带 Authorization 头的请求
             async function apiGet(path, token) {
+                console.log(`[DEBUG] API GET ${path}，使用token:`, token);
                 const resp = await fetch(`${WORKER_URL}${path}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                if (!resp.ok) throw new Error(`API ${path} failed: ${resp.status}`);
-                return resp.json();
+                if (!resp.ok) {
+                    console.error(`[ERROR] API GET ${path} 失败: ${resp.status}`);
+                    throw new Error(`API ${path} failed: ${resp.status}`);
+                }
+                const data = await resp.json();
+                console.log(`[DEBUG] API GET ${path} 响应:`, data);
+                return data;
             }
 
             async function apiPost(path, body) {
+                console.log(`[DEBUG] API POST ${path}，body:`, body);
                 const resp = await fetch(`${WORKER_URL}${path}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-                if (!resp.ok) throw new Error(`API ${path} failed: ${resp.status}`);
-                return resp.json();
+                if (!resp.ok) {
+                    console.error(`[ERROR] API POST ${path} 失败: ${resp.status}`);
+                    throw new Error(`API ${path} failed: ${resp.status}`);
+                }
+                const data = await resp.json();
+                console.log(`[DEBUG] API POST ${path} 响应:`, data);
+                return data;
             }
 
-            // 检查令牌有效性
             async function checkTokenValidity(token) {
+                console.log("[DEBUG] 检查令牌有效性...");
                 try {
                     const data = await apiGet('/api/check', token);
                     return data.valid === true;
@@ -215,8 +185,8 @@
                 }
             }
 
-            // 注册设备（需要 deviceProof）
             async function registerDeviceToken(token, deviceProof) {
+                console.log("[DEBUG] 注册设备，token:", token);
                 try {
                     const data = await apiPost('/api/register', { token, device_proof: deviceProof });
                     return data.success === true;
@@ -226,14 +196,14 @@
                 }
             }
 
-            // 获取文件列表
             async function fetchFileList(token) {
+                console.log("[DEBUG] 获取文件列表...");
                 const data = await apiGet('/api/filelist', token);
                 return data;
             }
 
-            // 显示文件列表界面
             async function showFiles() {
+                console.log("[DEBUG] 显示文件界面");
                 authSection.classList.add('hidden');
                 filesSection.classList.remove('hidden');
                 fileListContainer.innerHTML = '<div class="spinner"></div>';
@@ -242,7 +212,9 @@
                     const files = await fetchFileList(token);
                     renderFiles(files);
                     headerSubtitle.textContent = '安全访问班级共享文件';
+                    console.log("[DEBUG] 文件列表加载成功");
                 } catch (e) {
+                    console.error("[ERROR] 加载文件列表失败:", e);
                     clearDeviceToken();
                     filesSection.classList.add('hidden');
                     authSection.classList.remove('hidden');
@@ -251,8 +223,8 @@
                 }
             }
 
-            // 退出登录
             function logout() {
+                console.log("[DEBUG] 用户退出登录");
                 clearDeviceToken();
                 filesSection.classList.add('hidden');
                 authSection.classList.remove('hidden');
@@ -261,9 +233,9 @@
                 passwordInput.focus();
             }
 
-            // 处理密码验证
             async function handleSubmit() {
                 const password = passwordInput.value.trim();
+                console.log("[DEBUG] 提交密码验证，密码长度:", password.length);
                 if (!password) {
                     errorMsg.textContent = '请输入密码';
                     errorMsg.style.display = 'block';
@@ -275,26 +247,38 @@
                 errorMsg.style.display = 'none';
 
                 try {
+                    console.log("[DEBUG] 计算密码哈希...");
                     const inputHash = await sha256(password);
+                    console.log("[DEBUG] 输入密码哈希:", inputHash);
+                    console.log("[DEBUG] 内置密码哈希:", PASSWORD_HASH);
+                    
+                    console.log("[DEBUG] 验证签名...");
                     const isValid = await verifySignature(PUBLIC_KEY_JWK, PASSWORD_HASH, SIGNATURE);
+                    console.log("[DEBUG] 签名验证结果:", isValid);
+                    
                     if (isValid && inputHash === PASSWORD_HASH) {
+                        console.log("[DEBUG] 密码验证通过");
                         const token = getDeviceToken();
-                        // 生成设备专属凭证
                         const deviceProof = await sha256(PASSWORD_HASH + token);
+                        console.log("[DEBUG] deviceProof 生成完成，准备注册设备");
                         const registered = await registerDeviceToken(token, deviceProof);
                         if (registered) {
+                            console.log("[DEBUG] 设备注册成功，显示文件列表");
                             await showFiles();
                         } else {
+                            console.error("[ERROR] 设备注册失败");
                             errorMsg.textContent = '设备注册失败，请刷新重试';
                             errorMsg.style.display = 'block';
                         }
                     } else {
+                        console.warn("[WARN] 密码验证失败");
                         errorMsg.textContent = '密码错误，请重试';
                         errorMsg.style.display = 'block';
                         passwordInput.value = '';
                         passwordInput.focus();
                     }
                 } catch (e) {
+                    console.error("[ERROR] 验证过程异常:", e);
                     errorMsg.textContent = '验证失败，请刷新页面重试';
                     errorMsg.style.display = 'block';
                 } finally {
@@ -303,13 +287,15 @@
                 }
             }
 
-            // 初始化
             async function init() {
+                console.log("[DEBUG] 初始化页面...");
                 const token = getDeviceToken();
                 const valid = await checkTokenValidity(token);
                 if (valid) {
+                    console.log("[DEBUG] 令牌有效，自动显示文件列表");
                     await showFiles();
                 } else {
+                    console.log("[DEBUG] 令牌无效或已过期，显示登录界面");
                     clearDeviceToken();
                     authSection.classList.remove('hidden');
                     filesSection.classList.add('hidden');
