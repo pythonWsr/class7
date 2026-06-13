@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>高三七班共享云盘</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- vConsole 移动端调试工具（调试完成后可移除） -->
-    <script src="https://cdn.jsdelivr.net/npm/vconsole"></script>
+    <!-- 添加 eruda 调试工具 -->
+    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
     <script>
-        var vConsole = new VConsole();
+        eruda.init();
+        console.log("[Eruda] 调试工具已启动");
     </script>
 </head>
 <body>
@@ -41,7 +42,7 @@
 
     <script>
         (function() {
-            // ========== 调试日志 ==========
+            // ========== 添加调试日志 ==========
             console.log("[DEBUG] 页面脚本已启动");
             console.log("[DEBUG] WORKER_URL =", WORKER_URL);
             console.log("[DEBUG] PASSWORD_HASH 存在?", !!PASSWORD_HASH);
