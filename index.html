@@ -42,7 +42,6 @@
 
     <script>
         (function() {
-            // ========== 添加调试日志 ==========
             console.log("[DEBUG] 页面脚本已启动");
             console.log("[DEBUG] WORKER_URL =", WORKER_URL);
             console.log("[DEBUG] PASSWORD_HASH 存在?", !!PASSWORD_HASH);
@@ -293,8 +292,35 @@
                 }
             }
 
+            // ✅ 新增：自动跳过验证模式（URL 参数 skip=true）
+            async function autoLogin() {
+                console.log("[DEBUG] 跳过密码验证模式 (skip=true)");
+                const token = getDeviceToken();
+                const deviceProof = await sha256(PASSWORD_HASH + token);
+                const registered = await registerDeviceToken(token, deviceProof);
+                if (registered) {
+                    console.log("[DEBUG] 自动注册成功，显示文件列表");
+                    await showFiles();
+                } else {
+                    console.error("[ERROR] 自动注册失败，回退到登录界面");
+                    authSection.classList.remove('hidden');
+                    filesSection.classList.add('hidden');
+                    errorMsg.textContent = '自动登录失败，请手动输入密码';
+                    errorMsg.style.display = 'block';
+                }
+            }
+
             async function init() {
                 console.log("[DEBUG] 初始化页面...");
+                // 检查 URL 参数
+                const urlParams = new URLSearchParams(window.location.search);
+                const skipAuth = urlParams.get('skip') === 'true';
+                if (skipAuth) {
+                    await autoLogin();
+                    return;
+                }
+
+                // 原有逻辑：检查令牌有效性
                 const token = getDeviceToken();
                 const valid = await checkTokenValidity(token);
                 if (valid) {
